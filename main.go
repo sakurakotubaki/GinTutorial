@@ -1,93 +1,34 @@
 package main
 
 import (
-	"net/http"
-
-	"github.com/gin-gonic/gin"
-	"github.com/jinzhu/gorm"
-	_ "github.com/jinzhu/gorm/dialects/sqlite"
+    "github.com/gin-gonic/gin"
+    "github.com/jinzhu/gorm"
+    _ "github.com/jinzhu/gorm/dialects/sqlite"
+    "shop/model"
+    "shop/repository"
+    "shop/usecase"
+    "shop/controller"
 )
 
-type Shop struct {
-	gorm.Model
-	Title       string
-	Description string
-}
-
 func main() {
-	db, err := gorm.Open("sqlite3", "shop.db")
-	if err != nil {
-		panic("failed to connect database")
-	}
+    db, err := gorm.Open("sqlite3", "shop.db")
+    if err != nil {
+        panic("failed to connect database")
+    }
 
-	// Migrate the schema
-	db.AutoMigrate(&Shop{})
+    // Migrate the schema
+    db.AutoMigrate(&model.Shop{})
 
-	r := gin.Default()
+    shopRepo := repository.NewShopRepository(db)
+    shopUsecase := usecase.NewShopUsecase(shopRepo)
+    shopController := controller.NewShopController(shopUsecase)
 
-	// Create
-	r.POST("/shops", func(c *gin.Context) {
-		var shop Shop
-		if err := c.ShouldBindJSON(&shop); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
+    r := gin.Default()
 
-		db.Create(&shop)
-		c.JSON(http.StatusOK, shop)
-	})
-
-	// Read
-	r.GET("/shops/:id", func(c *gin.Context) {
-		var shop Shop
-		if err := db.First(&shop, c.Param("id")).Error; err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Record not found!"})
-			return
-		}
-
-		c.JSON(http.StatusOK, shop)
-	})
-
-	// Read all
-	r.GET("/shops", func(c *gin.Context) {
-		var shops []Shop
-		if err := db.Find(&shops).Error; err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Record not found!"})
-			return
-		} else {
-			db.Find(&shops)
-			c.JSON(http.StatusOK, shops)
-		}
-	})
-
-	// Update
-	r.PUT("/shops/:id", func(c *gin.Context) {
-		var shop Shop
-		if err := db.First(&shop, c.Param("id")).Error; err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Record not found!"})
-			return
-		}
-
-		if err := c.ShouldBindJSON(&shop); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-
-		db.Save(&shop)
-		c.JSON(http.StatusOK, shop)
-	})
-
-	// Delete
-	r.DELETE("/shops/:id", func(c *gin.Context) {
-		var shop Shop
-		if err := db.First(&shop, c.Param("id")).Error; err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Record not found!"})
-			return
-		}
-
-		db.Delete(&shop)
-		c.JSON(http.StatusOK, gin.H{"success": "Record has been deleted!"})
-	})
-
-	r.Run()
+    r.POST("/shops", shopController.Create)
+	r.GET("/shops/:id", shopController.GetByID)
+	r.GET("/shops", shopController.GetAll)
+	r.PUT("/shops/:id", shopController.Update)
+	r.DELETE("/shops/:id", shopController.Delete)
+    r.Run()
 }
